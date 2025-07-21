@@ -1,0 +1,36 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "389e6102c36420532ec1369c13e15a9b"
+name = "Etsy Importer "
+handle = "etsy-importer-3"
+application_url = "https://builds-latino-impressed-statute.trycloudflare.com"
+embedded = true
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-04"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,write_products,read_inventory,write_inventory,read_orders,write_publications,read_locations"
+
+[auth]
+redirect_urls = [
+  "https://builds-latino-impressed-statute.trycloudflare.com/auth/callback",
+  "https://builds-latino-impressed-statute.trycloudflare.com/auth/shopify/callback",
+  "https://builds-latino-impressed-statute.trycloudflare.com/api/auth/callback"
+]
+
+[pos]
+embedded = false

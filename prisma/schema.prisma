@@ -1,0 +1,538 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  
+  @@map("sessions") // ✅ avoid reserved keyword
+}
+
+model categories {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  name        String?  @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  created_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  tasks       tasks[]
+}
+
+model chargerequest {
+  id            Int    @id @default(autoincrement())
+  user_id       Int
+  charge_id     String @db.VarChar(20)
+  api_client_id String @db.VarChar(20)
+  price         Float  @db.Float
+  status        String @db.VarChar(10)
+  created_at    String @db.VarChar(25)
+  updated_at    String @db.VarChar(25)
+  response      String @db.Text
+}
+
+model crons {
+  id        Int      @id @default(autoincrement())
+  crontype  String   @db.VarChar(50)
+  isrunning Boolean  @default(false)
+  lastrun   DateTime @db.DateTime(0)
+  info      String   @db.VarChar(500)
+}
+
+model etsy_keys {
+  id                 Int                  @id @default(autoincrement())
+  shop_id            String               @db.VarChar(255)
+  store_name         String?              @db.VarChar(500)
+  access_token       String?              @db.VarChar(500)
+  refresh_token      String?              @db.VarChar(500)
+  oauth_token        String               @db.VarChar(255)
+  oauth_token_secret String               @db.VarChar(255)
+  apiversion         etsy_keys_apiversion @default(v2)
+  valid              Boolean              @default(true)
+  sectionsimported   Boolean              @default(false)
+  lastdatafetched    DateTime             @db.DateTime(0)
+  active             Boolean              @default(true)
+  soldout            Boolean              @default(false)
+  expired            Boolean              @default(false)
+  draft              Boolean              @default(false)
+  user_id            Int
+  created_at         DateTime             @default(now()) @db.Timestamp(0)
+  updated_at         DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+}
+
+model etsy_requests {
+  id         Int                  @id @default(autoincrement())
+  inprocess  Boolean
+  status     etsy_requests_status
+  user_id    Int
+  created_at DateTime             @default(now()) @db.Timestamp(0)
+  updated_at DateTime             @updatedAt @db.Timestamp(0)
+}
+
+model etsy_section {
+  id              Int      @id @default(autoincrement())
+  shop_section_id String?  @db.VarChar(255)
+  title           String?  @db.VarChar(255)
+  etsy_user_id    String?  @db.VarChar(255)
+  user_id         Int
+  created_at      DateTime @default(now()) @db.Timestamp(0)
+  updated_at      DateTime @default(now()) @db.Timestamp(0)
+}
+
+model galleries {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  filename   String?  @db.VarChar(100)
+  size       Int?
+  task_id    Int?     @db.UnsignedInt
+  created_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  tasks      tasks?   @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "galleries_task_id_foreign")
+
+  @@index([task_id], map: "galleries_task_id_foreign")
+}
+
+model locations {
+  id                Int              @id @default(autoincrement())
+  name              String           @db.VarChar(255)
+  legacy            Boolean
+  status            locations_status @default(active)
+  shopifylocationid String           @db.VarChar(30)
+  user_id           Int
+  created_at        DateTime         @default(now()) @db.Timestamp(0)
+  updated_at        DateTime         @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+}
+
+model permission_role {
+  permission_id Int         @db.UnsignedInt
+  role_id       Int         @db.UnsignedInt
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, map: "permission_role_permission_id_foreign")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, map: "permission_role_role_id_foreign")
+
+  @@id([permission_id, role_id])
+  @@index([role_id], map: "permission_role_role_id_foreign")
+}
+
+model permissions {
+  id              Int               @id @default(autoincrement()) @db.UnsignedInt
+  name            String            @unique(map: "permissions_name_unique") @db.VarChar(255)
+  display_name    String?           @db.VarChar(255)
+  description     String?           @db.VarChar(255)
+  created_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  permission_role permission_role[]
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model product_images {
+  id         Int      @default(autoincrement())
+  product_id Int
+  imgurl     String   @db.VarChar(255)
+  user_id    Int
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  variant_id Int?
+  @@id([id, user_id])
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model product_variants {
+  id                   Int                     @default(autoincrement()) @db.UnsignedInt
+  product_id           Int
+etsy_product_id       String                  @db.VarChar(100)
+  sku                  String                  @db.VarChar(100)
+  asin                 String                  @db.VarChar(30)
+  barcode              String                  @db.VarChar(50)
+  option1val           String                  @db.VarChar(100)
+  option2val           String                  @db.VarChar(100)
+  option3val           String                  @db.VarChar(100)
+  price                Float
+  saleprice            Float
+  pd_condition         String                  @db.VarChar(50)
+  quantity             Int
+  imageurl             String                  @db.LongText
+  weight               Float?                  @db.Float
+  weight_unit          String?                 @db.VarChar(10)
+  newflag              Int                     @db.TinyInt
+  quantityflag         Int                     @db.TinyInt
+  priceflag            Int                     @db.TinyInt
+  block                Int                     @db.TinyInt
+  duplicate            Int                     @db.TinyInt
+  deleted              Boolean                 @default(false)
+  status               product_variants_status @default(Ready_to_Import)
+  shopifyproductid     String                  @db.VarChar(30)
+  shopifyvariantid     String                  @db.VarChar(30)
+  shopifyinventoryid   String                  @db.VarChar(30)
+  shopifylocationid    String                  @db.VarChar(30)
+  amazonofferlistingid String                  @db.VarChar(100)
+  user_id              Int
+  created_at           DateTime                @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at           DateTime                @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  products             products @relation("ProductToVariants", fields: [product_id, user_id], references: [product_id, user_id])
+
+  @@id([id, user_id])
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model products {
+  product_id             Int             @default(autoincrement()) @db.UnsignedInt
+  title                  String          @db.VarChar(1000)
+  description            String          @db.Text
+  tags                   String          @db.VarChar(2000)
+  attributes             String          @db.VarChar(2000)
+  section_id             String          @db.VarChar(255)
+  section_name           String          @db.VarChar(255)
+  category_path          String          @db.VarChar(255)
+  etsy_state             String          @db.VarChar(500)
+  brand                  String          @db.VarChar(100)
+  product_type           String          @db.VarChar(100)
+  option1name            String          @db.VarChar(100)
+  option2name            String          @db.VarChar(100)
+  option3name            String          @db.VarChar(100)
+  etsylistingid          String          @db.VarChar(30)
+  main_image             String?         @db.LongText
+  product_image_data     String?         @db.LongText
+  variation_image_mapping String?        @db.LongText
+  has_variation Int? @default(1)
+  shopifyproductid       String          @db.VarChar(30)
+  newflag                Int             @db.TinyInt
+  quantityflag           Int             @db.TinyInt
+  priceflag              Int             @db.TinyInt
+  block                  Int             @db.TinyInt
+  duplicate              Int             @db.TinyInt
+  status                 products_status @default(Ready_to_Import)
+  errdetails             String          @db.VarChar(255)
+  user_id                Int
+  created_at             DateTime        @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at             DateTime        @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  product_variants       product_variants[] @relation("ProductToVariants")
+
+  @@id([product_id, user_id])
+}
+
+
+model profiles {
+  id                   Int       @id @default(autoincrement()) @db.UnsignedInt
+  profile_name         String    @db.VarChar(255)
+  shipping_template_id String    @db.VarChar(255)
+  shop_section_id      String?   @db.VarChar(255)
+  return_policy_id     String?   @db.VarChar(255)
+  processing_min       Int?
+  processing_max       Int?
+  category_id          String    @db.VarChar(255)
+  taxonomy_id          String    @db.VarChar(255)
+  who_made             String?   @db.VarChar(255)
+  is_supply            String?   @db.VarChar(255)
+  when_made            String?   @db.VarChar(255)
+  should_auto_renew    String?   @db.VarChar(255)
+  is_customizable      String?   @db.VarChar(255)
+  materials            String    @db.VarChar(255)
+  recipient            String?   @db.VarChar(255)
+  occasion             String?   @db.VarChar(255)
+  item_dimensions_unit String?   @db.VarChar(255)
+  non_taxable          String?   @db.VarChar(255)
+  variant_mapping      String    @db.Text
+  profile_all_any      String?   @default("all") @db.VarChar(225)
+  profile_condition    String    @db.Text
+  attributes           String    @db.Text
+  user_id              Int
+  created_at           DateTime? @default(now()) @db.Timestamp(0)
+  updated_at           DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model role_user {
+  user_id Int   @db.UnsignedInt
+  role_id Int   @db.UnsignedInt
+  roles   roles @relation(fields: [role_id], references: [id], onDelete: Cascade, map: "role_user_role_id_foreign")
+  users   users @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "role_user_user_id_foreign")
+
+  @@id([user_id, role_id])
+  @@index([role_id], map: "role_user_role_id_foreign")
+}
+
+model roles {
+  id              Int               @id @default(autoincrement()) @db.UnsignedInt
+  name            String            @unique(map: "roles_name_unique") @db.VarChar(255)
+  display_name    String?           @db.VarChar(255)
+  description     String?           @db.VarChar(255)
+  created_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  permission_role permission_role[]
+  role_user       role_user[]
+}
+
+model route_permission {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  route       String   @unique(map: "route_permission_route_unique") @db.VarChar(255)
+  permissions String?  @db.VarChar(255)
+  roles       String?  @db.VarChar(255)
+  created_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+}
+
+model setting {
+  id                 Int                       @id @default(autoincrement())
+  user_id            Int
+  published          Int
+  tags               String                    @db.VarChar(60)
+  inventory_sync     Int
+  price_sync         Int
+  outofstock_action  setting_outofstock_action @default(outofstock)
+  markupenabled      Boolean
+  markuptype         setting_markuptype        @default(FIXED)
+  markupval          Float                     @db.Float
+  markupvalfixed     Float                     @db.Float
+  markupround        Boolean
+  shopifyorders      Boolean                   @default(false)
+  fulfilment_service String                    @default("manual") @db.VarChar(50)
+  inventory_policy   String                    @default("shopify") @db.VarChar(50)
+  shopifylocationid  String                    @db.VarChar(30)
+  created_at         DateTime                  @default(now()) @db.Timestamp(0)
+  updated_at         DateTime                  @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+}
+
+model sh_product_variants {
+  id                        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  title                     String?   @db.VarChar(500)
+  sku                       String?   @db.VarChar(255)
+  image                     String?   @db.VarChar(500)
+  barcode                   String?   @db.VarChar(255)
+  etsyproductid             String?   @db.VarChar(255)
+  quantity                  Int?
+  price                     Float?
+  compare_at_price          Float?
+  shopify_variant_id        BigInt?
+  shopify_inventory_item_id BigInt?
+  shopify_product_id        BigInt?
+  shopify_product_handle    String?   @db.VarChar(500)
+  shopify_variant_data      String?   @db.LongText
+  sh_product_id             BigInt?
+  user_id                   BigInt?
+  created_at                DateTime? @db.Timestamp(0)
+  updated_at                DateTime? @db.Timestamp(0)
+}
+
+model sh_products {
+  id                     BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  title                  String?             @db.VarChar(500)
+  edit_title             String?             @db.Text
+  image                  String?             @db.LongText
+  status                 sh_products_status? @default(Unlinked)
+  shopify_product_id     BigInt?
+  etsylistingid          String?             @db.VarChar(100)
+  shopify_product_handle String?             @db.VarChar(500)
+  shopify_product_type   String?             @db.VarChar(255)
+  brand                  String?             @db.VarChar(250)
+  shopify_product_data   String?             @db.LongText
+  error_no               String?             @db.LongText
+  dimensions             String?             @db.LongText
+  has_variation          Int
+  Source                 String?             @db.LongText
+  submit                 Boolean?
+  error_info             String?             @db.Text
+  profile_id             Int?
+  user_id                BigInt?
+  created_at             DateTime?           @db.Timestamp(0)
+  updated_at             DateTime?           @db.Timestamp(0)
+  block                  Int                 @default(0)
+}
+
+model shopifyorders {
+  id               Int      @id @default(autoincrement())
+  orderid          String   @db.VarChar(50)
+  user_id          Int
+  orderdata        String   @db.Text
+  inventoryupdates String   @db.VarChar(5000)
+  resp             String   @db.Text
+  processed        Boolean  @default(false)
+  created_at       DateTime @default(now()) @db.Timestamp(0)
+  updated_at       DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model shopifyproducts {
+  id                     Int      @default(autoincrement())
+  user_id                Int
+  productid              String   @db.VarChar(30)
+  variantid              String   @db.VarChar(30)
+  gid_shopifyproductid   String   @db.VarChar(100)
+  gid_shopifyvariantid   String   @db.VarChar(100)
+  gid_shopifyinventoryid String   @db.VarChar(100)
+  gid_shopifylocationid  String   @db.VarChar(100)
+  sku                    String   @db.VarChar(100)
+  ebayitemid             String   @db.VarChar(30)
+  dateofmodification     DateTime @db.DateTime(0)
+  qty                    Int
+  price                  Float    @db.Float
+
+  @@id([id, user_id])
+}
+
+model tags {
+  id         Int         @id @default(autoincrement()) @db.UnsignedInt
+  tag        String?     @db.VarChar(100)
+  created_at DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  task_tags  task_tags[]
+}
+
+model task_tags {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  tag_id     Int?     @db.UnsignedInt
+  task_id    Int?     @db.UnsignedInt
+  created_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  tags       tags?    @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "task_tags_tag_id_foreign")
+  tasks      tasks?   @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "task_tags_task_id_foreign")
+
+  @@index([tag_id], map: "task_tags_tag_id_foreign")
+  @@index([task_id], map: "task_tags_task_id_foreign")
+}
+
+model tasks {
+  id          Int         @id @default(autoincrement()) @db.UnsignedInt
+  title       String?     @db.VarChar(50)
+  description String?     @db.VarChar(1024)
+  start_date  DateTime?   @db.Date
+  end_date    DateTime?   @db.Date
+  task_status Boolean?
+  user_id     Int?        @db.UnsignedInt
+  category_id Int?        @db.UnsignedInt
+  created_at  DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at  DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  galleries   galleries[]
+  task_tags   task_tags[]
+  categories  categories? @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "tasks_category_id_foreign")
+  users       users?      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "tasks_user_id_foreign")
+
+  @@index([category_id], map: "tasks_category_id_foreign")
+  @@index([user_id], map: "tasks_user_id_foreign")
+}
+
+model users {
+  id                     Int                  @id @default(autoincrement()) @db.UnsignedInt
+  ownername              String               @db.VarChar(255)
+  email                  String               @db.VarChar(150)
+  password               String               @db.VarChar(60)
+  avatar_url             String               @db.VarChar(50)
+  shopurl                String               @db.Text
+  token                  String               @db.VarChar(255)
+  status                 users_status
+  catalogfetched         Int                  @db.TinyInt
+  shopifyimported        Int                  @db.TinyInt
+  fbainvnt               Int                  @db.TinyInt
+  tempcode               String               @db.VarChar(30)
+  installationstatus     Int                  @db.TinyInt
+  membershiptype         users_membershiptype
+  plan                   Int
+  sync                   Int                  @db.TinyInt
+  storecreated_at        DateTime             @db.DateTime(0)
+  storeupdated_at        DateTime             @db.DateTime(0)
+  plan_name              String               @db.VarChar(255)
+  skulimit               Int                  @default(5)
+  skuconsumed            Int
+  tosaccepted            Int                  @db.TinyInt
+  includeoutofstock      Int                  @db.TinyInt
+  publishstatus          Int                  @db.TinyInt
+  multi_location_enabled Boolean              @default(false)
+  appswitch              Boolean              @default(false)
+  keysemail              Int                  @db.TinyInt
+  remember_token         String?              @db.VarChar(100)
+  created_at             DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at             DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  paid_at                DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  deleted_at             DateTime?            @db.Timestamp(0)
+  role_user              role_user[]
+  tasks                  tasks[]
+}
+
+enum etsy_requests_status {
+  pending
+  completed
+}
+
+enum locations_status {
+  active
+  inactive
+}
+
+enum sh_products_status {
+  Already_Exist        @map("Already Exist")
+  Ready_to_Import      @map("Ready to Import")
+  Import_in_progress   @map("Import in progress")
+  Imported
+  reimport_in_progress @map("reimport in progress")
+  error
+  Unlinked
+  linked
+}
+
+enum setting_outofstock_action {
+  unpublish
+  outofstock
+  delete
+}
+
+enum etsy_keys_apiversion {
+  v2
+  v3
+}
+
+enum users_status {
+  active
+  inactive
+}
+
+enum setting_markuptype {
+  FIXED
+  PERCEN
+}
+
+enum users_membershiptype {
+  free
+  paid
+}
+
+enum product_variants_status {
+  Already_Exist      @map("Already Exist")
+  Ready_to_Import    @map("Ready to Import")
+  Import_in_progress @map("Import in progress")
+  Imported
+}
+
+enum products_status {
+  Already_Exist        @map("Already Exist")
+  Ready_to_Import      @map("Ready to Import")
+  Import_in_progress   @map("Import in progress")
+  Imported
+  error
+  reimport_in_progress @map("reimport in progress")
+}
+
+model processimports {
+  id         Int       @id @default(autoincrement())
+  count      Int
+  user_id    Int
+  created_at DateTime? @default(now()) @updatedAt @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+
+  @@index([user_id], map: "user_id")
+}
+
