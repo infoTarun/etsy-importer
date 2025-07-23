@@ -48,8 +48,6 @@ export const loader = async ({ request }) => {
     }
    });
 
-
-
   // Get paginated products
   const products = await prisma.products.findMany({
     where,

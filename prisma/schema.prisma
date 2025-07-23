@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Session {
   id            String    @id
   shop          String
@@ -24,21 +23,20 @@ model Session {
   locale        String?
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
-  
-  @@map("sessions") // ✅ avoid reserved keyword
+
+  @@map("sessions")
 }
 
 model categories {
-  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  id          Int      @id @db.UnsignedInt
   name        String?  @db.VarChar(50)
   description String?  @db.VarChar(255)
-  created_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  tasks       tasks[]
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  updated_at  DateTime @default(now()) @db.Timestamp(0)
 }
 
 model chargerequest {
-  id            Int    @id @default(autoincrement())
+  id            Int    @id
   user_id       Int
   charge_id     String @db.VarChar(20)
   api_client_id String @db.VarChar(20)
@@ -50,7 +48,7 @@ model chargerequest {
 }
 
 model crons {
-  id        Int      @id @default(autoincrement())
+  id        Int      @id
   crontype  String   @db.VarChar(50)
   isrunning Boolean  @default(false)
   lastrun   DateTime @db.DateTime(0)
@@ -58,7 +56,7 @@ model crons {
 }
 
 model etsy_keys {
-  id                 Int                  @id @default(autoincrement())
+  id                 Int                  @id
   shop_id            String               @db.VarChar(255)
   store_name         String?              @db.VarChar(500)
   access_token       String?              @db.VarChar(500)
@@ -75,20 +73,20 @@ model etsy_keys {
   draft              Boolean              @default(false)
   user_id            Int
   created_at         DateTime             @default(now()) @db.Timestamp(0)
-  updated_at         DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at         DateTime             @default(now()) @db.Timestamp(0)
 }
 
 model etsy_requests {
-  id         Int                  @id @default(autoincrement())
+  id         Int                  @id
   inprocess  Boolean
   status     etsy_requests_status
   user_id    Int
   created_at DateTime             @default(now()) @db.Timestamp(0)
-  updated_at DateTime             @updatedAt @db.Timestamp(0)
+  updated_at DateTime             @default(now()) @updatedAt @db.Timestamp(0)
 }
 
 model etsy_section {
-  id              Int      @id @default(autoincrement())
+  id              Int      @id
   shop_section_id String?  @db.VarChar(255)
   title           String?  @db.VarChar(255)
   etsy_user_id    String?  @db.VarChar(255)
@@ -98,65 +96,62 @@ model etsy_section {
 }
 
 model galleries {
-  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  id         Int      @id @db.UnsignedInt
   filename   String?  @db.VarChar(100)
   size       Int?
   task_id    Int?     @db.UnsignedInt
-  created_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  tasks      tasks?   @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "galleries_task_id_foreign")
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @default(now()) @db.Timestamp(0)
 
   @@index([task_id], map: "galleries_task_id_foreign")
 }
 
 model locations {
-  id                Int              @id @default(autoincrement())
+  id                Int              @id
   name              String           @db.VarChar(255)
   legacy            Boolean
   status            locations_status @default(active)
   shopifylocationid String           @db.VarChar(30)
   user_id           Int
   created_at        DateTime         @default(now()) @db.Timestamp(0)
-  updated_at        DateTime         @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at        DateTime         @default(now()) @db.Timestamp(0)
 }
 
 model permission_role {
-  permission_id Int         @db.UnsignedInt
-  role_id       Int         @db.UnsignedInt
-  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, map: "permission_role_permission_id_foreign")
-  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, map: "permission_role_role_id_foreign")
+  permission_id Int @db.UnsignedInt
+  role_id       Int @db.UnsignedInt
 
   @@id([permission_id, role_id])
   @@index([role_id], map: "permission_role_role_id_foreign")
 }
 
 model permissions {
-  id              Int               @id @default(autoincrement()) @db.UnsignedInt
-  name            String            @unique(map: "permissions_name_unique") @db.VarChar(255)
-  display_name    String?           @db.VarChar(255)
-  description     String?           @db.VarChar(255)
-  created_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  permission_role permission_role[]
+  id           Int      @id @db.UnsignedInt
+  name         String   @unique(map: "permissions_name_unique") @db.VarChar(255)
+  display_name String?  @db.VarChar(255)
+  description  String?  @db.VarChar(255)
+  created_at   DateTime @default(now()) @db.Timestamp(0)
+  updated_at   DateTime @default(now()) @db.Timestamp(0)
 }
 
 /// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
 model product_images {
-  id         Int      @default(autoincrement())
+  id         Int
   product_id Int
   imgurl     String   @db.VarChar(255)
   user_id    Int
   created_at DateTime @default(now()) @db.Timestamp(0)
-  updated_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at DateTime @default(now()) @db.Timestamp(0)
   variant_id Int?
+
   @@id([id, user_id])
 }
 
 /// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
 model product_variants {
-  id                   Int                     @default(autoincrement()) @db.UnsignedInt
+  id                   Int                     @db.UnsignedInt
   product_id           Int
-etsy_product_id       String                  @db.VarChar(100)
+  etsy_product_id      String                  @db.VarChar(100)
   sku                  String                  @db.VarChar(100)
   asin                 String                  @db.VarChar(30)
   barcode              String                  @db.VarChar(50)
@@ -183,53 +178,50 @@ etsy_product_id       String                  @db.VarChar(100)
   shopifylocationid    String                  @db.VarChar(30)
   amazonofferlistingid String                  @db.VarChar(100)
   user_id              Int
-  created_at           DateTime                @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at           DateTime                @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  products             products @relation("ProductToVariants", fields: [product_id, user_id], references: [product_id, user_id])
+  created_at           DateTime                @default(now()) @db.Timestamp(0)
+  updated_at           DateTime                @default(now()) @db.Timestamp(0)
 
   @@id([id, user_id])
 }
 
 /// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
 model products {
-  product_id             Int             @default(autoincrement()) @db.UnsignedInt
-  title                  String          @db.VarChar(1000)
-  description            String          @db.Text
-  tags                   String          @db.VarChar(2000)
-  attributes             String          @db.VarChar(2000)
-  section_id             String          @db.VarChar(255)
-  section_name           String          @db.VarChar(255)
-  category_path          String          @db.VarChar(255)
-  etsy_state             String          @db.VarChar(500)
-  brand                  String          @db.VarChar(100)
-  product_type           String          @db.VarChar(100)
-  option1name            String          @db.VarChar(100)
-  option2name            String          @db.VarChar(100)
-  option3name            String          @db.VarChar(100)
-  etsylistingid          String          @db.VarChar(30)
-  main_image             String?         @db.LongText
-  product_image_data     String?         @db.LongText
-  variation_image_mapping String?        @db.LongText
-  has_variation Int? @default(1)
-  shopifyproductid       String          @db.VarChar(30)
-  newflag                Int             @db.TinyInt
-  quantityflag           Int             @db.TinyInt
-  priceflag              Int             @db.TinyInt
-  block                  Int             @db.TinyInt
-  duplicate              Int             @db.TinyInt
-  status                 products_status @default(Ready_to_Import)
-  errdetails             String          @db.VarChar(255)
-  user_id                Int
-  created_at             DateTime        @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at             DateTime        @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  product_variants       product_variants[] @relation("ProductToVariants")
+  product_id              Int             @db.UnsignedInt
+  title                   String          @db.VarChar(500)
+  description             String          @db.Text
+  tags                    String          @db.VarChar(2000)
+  attributes              String          @db.VarChar(2000)
+  section_id              String          @db.VarChar(255)
+  section_name            String          @db.VarChar(255)
+  category_path           String          @db.VarChar(255)
+  etsy_state              String          @db.VarChar(500)
+  brand                   String          @db.VarChar(100)
+  product_type            String          @db.VarChar(100)
+  has_variation           Int?            @default(1)
+  option1name             String          @db.VarChar(100)
+  option2name             String          @db.VarChar(100)
+  option3name             String          @db.VarChar(100)
+  etsylistingid           String          @db.VarChar(30)
+  main_image              String?         @db.LongText
+  product_image_data      String?         @db.LongText
+  variation_image_mapping String?         @db.LongText
+  shopifyproductid        String          @db.VarChar(30)
+  newflag                 Int             @db.TinyInt
+  quantityflag            Int             @db.TinyInt
+  priceflag               Int             @db.TinyInt
+  block                   Int             @db.TinyInt
+  duplicate               Int             @db.TinyInt
+  status                  products_status @default(Ready_to_Import)
+  errdetails              String          @db.VarChar(255)
+  user_id                 Int
+  created_at              DateTime        @default(now()) @db.Timestamp(0)
+  updated_at              DateTime        @default(now()) @db.Timestamp(0)
 
   @@id([product_id, user_id])
 }
 
-
 model profiles {
-  id                   Int       @id @default(autoincrement()) @db.UnsignedInt
+  id                   Int       @id @db.UnsignedInt
   profile_name         String    @db.VarChar(255)
   shipping_template_id String    @db.VarChar(255)
   shop_section_id      String?   @db.VarChar(255)
@@ -257,59 +249,63 @@ model profiles {
   updated_at           DateTime? @default(now()) @db.Timestamp(0)
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model role_user {
-  user_id Int   @db.UnsignedInt
-  role_id Int   @db.UnsignedInt
-  roles   roles @relation(fields: [role_id], references: [id], onDelete: Cascade, map: "role_user_role_id_foreign")
-  users   users @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "role_user_user_id_foreign")
+  user_id Int @db.UnsignedInt
+  role_id Int @db.UnsignedInt
 
-  @@id([user_id, role_id])
-  @@index([role_id], map: "role_user_role_id_foreign")
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model roles {
-  id              Int               @id @default(autoincrement()) @db.UnsignedInt
-  name            String            @unique(map: "roles_name_unique") @db.VarChar(255)
-  display_name    String?           @db.VarChar(255)
-  description     String?           @db.VarChar(255)
-  created_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at      DateTime          @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  permission_role permission_role[]
-  role_user       role_user[]
+  id           Int      @db.UnsignedInt
+  name         String   @db.VarChar(255)
+  display_name String?  @db.VarChar(255)
+  description  String?  @db.VarChar(255)
+  created_at   DateTime @default(now()) @db.Timestamp(0)
+  updated_at   DateTime @default(now()) @db.Timestamp(0)
+
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model route_permission {
-  id          Int      @id @default(autoincrement()) @db.UnsignedInt
-  route       String   @unique(map: "route_permission_route_unique") @db.VarChar(255)
+  id          Int      @db.UnsignedInt
+  route       String   @db.VarChar(255)
   permissions String?  @db.VarChar(255)
   roles       String?  @db.VarChar(255)
-  created_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at  DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  updated_at  DateTime @default(now()) @db.Timestamp(0)
+
+  @@ignore
 }
 
 model setting {
-  id                 Int                       @id @default(autoincrement())
-  user_id            Int
-  published          Int
-  tags               String                    @db.VarChar(60)
-  inventory_sync     Int
-  price_sync         Int
-  outofstock_action  setting_outofstock_action @default(outofstock)
-  markupenabled      Boolean
-  markuptype         setting_markuptype        @default(FIXED)
-  markupval          Float                     @db.Float
-  markupvalfixed     Float                     @db.Float
-  markupround        Boolean
-  shopifyorders      Boolean                   @default(false)
-  fulfilment_service String                    @default("manual") @db.VarChar(50)
-  inventory_policy   String                    @default("shopify") @db.VarChar(50)
-  shopifylocationid  String                    @db.VarChar(30)
-  created_at         DateTime                  @default(now()) @db.Timestamp(0)
-  updated_at         DateTime                  @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  id                     Int                       @id @default(autoincrement())
+  user_id                Int
+  published              Int
+  tags                   String                    @db.VarChar(60)
+  inventory_sync         Int
+  price_sync             Int
+  outofstock_action      setting_outofstock_action @default(outofstock)
+  markupenabled          Boolean
+  markuptype             setting_markuptype        @default(FIXED)
+  markupval              Float                     @db.Float
+  markupvalfixed         Float                     @db.Float
+  markupround            Boolean
+  shopifyorders          Boolean                   @default(false)
+  fulfilment_service     String                    @default("manual") @db.VarChar(50)
+  inventory_policy       String                    @default("shopify") @db.VarChar(50)
+  shopifylocationid      String                    @db.VarChar(30)
+  created_at             DateTime                  @default(now()) @db.Timestamp(0)
+  updated_at             DateTime                  @default(now()) @db.Timestamp(0)
+  shopify_publication_id String?                   @db.VarChar(255)
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model sh_product_variants {
-  id                        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  id                        BigInt    @db.UnsignedBigInt
   title                     String?   @db.VarChar(500)
   sku                       String?   @db.VarChar(255)
   image                     String?   @db.VarChar(500)
@@ -327,10 +323,13 @@ model sh_product_variants {
   user_id                   BigInt?
   created_at                DateTime? @db.Timestamp(0)
   updated_at                DateTime? @db.Timestamp(0)
+
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model sh_products {
-  id                     BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  id                     BigInt              @db.UnsignedBigInt
   title                  String?             @db.VarChar(500)
   edit_title             String?             @db.Text
   image                  String?             @db.LongText
@@ -352,10 +351,13 @@ model sh_products {
   created_at             DateTime?           @db.Timestamp(0)
   updated_at             DateTime?           @db.Timestamp(0)
   block                  Int                 @default(0)
+
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model shopifyorders {
-  id               Int      @id @default(autoincrement())
+  id               Int
   orderid          String   @db.VarChar(50)
   user_id          Int
   orderdata        String   @db.Text
@@ -363,12 +365,15 @@ model shopifyorders {
   resp             String   @db.Text
   processed        Boolean  @default(false)
   created_at       DateTime @default(now()) @db.Timestamp(0)
-  updated_at       DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  updated_at       DateTime @default(now()) @db.Timestamp(0)
+
+  @@ignore
 }
 
 /// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model shopifyproducts {
-  id                     Int      @default(autoincrement())
+  id                     Int
   user_id                Int
   productid              String   @db.VarChar(30)
   variantid              String   @db.VarChar(30)
@@ -382,52 +387,49 @@ model shopifyproducts {
   qty                    Int
   price                  Float    @db.Float
 
-  @@id([id, user_id])
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model tags {
-  id         Int         @id @default(autoincrement()) @db.UnsignedInt
-  tag        String?     @db.VarChar(100)
-  created_at DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  task_tags  task_tags[]
+  id         Int      @db.UnsignedInt
+  tag        String?  @db.VarChar(100)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @default(now()) @db.Timestamp(0)
+
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model task_tags {
-  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  id         Int      @db.UnsignedInt
   tag_id     Int?     @db.UnsignedInt
   task_id    Int?     @db.UnsignedInt
-  created_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at DateTime @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  tags       tags?    @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "task_tags_tag_id_foreign")
-  tasks      tasks?   @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "task_tags_task_id_foreign")
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @default(now()) @db.Timestamp(0)
 
-  @@index([tag_id], map: "task_tags_tag_id_foreign")
-  @@index([task_id], map: "task_tags_task_id_foreign")
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model tasks {
-  id          Int         @id @default(autoincrement()) @db.UnsignedInt
-  title       String?     @db.VarChar(50)
-  description String?     @db.VarChar(1024)
-  start_date  DateTime?   @db.Date
-  end_date    DateTime?   @db.Date
+  id          Int       @db.UnsignedInt
+  title       String?   @db.VarChar(50)
+  description String?   @db.VarChar(1024)
+  start_date  DateTime? @db.Date
+  end_date    DateTime? @db.Date
   task_status Boolean?
-  user_id     Int?        @db.UnsignedInt
-  category_id Int?        @db.UnsignedInt
-  created_at  DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at  DateTime    @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  galleries   galleries[]
-  task_tags   task_tags[]
-  categories  categories? @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "tasks_category_id_foreign")
-  users       users?      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "tasks_user_id_foreign")
+  user_id     Int?      @db.UnsignedInt
+  category_id Int?      @db.UnsignedInt
+  created_at  DateTime  @default(now()) @db.Timestamp(0)
+  updated_at  DateTime  @default(now()) @db.Timestamp(0)
 
-  @@index([category_id], map: "tasks_category_id_foreign")
-  @@index([user_id], map: "tasks_user_id_foreign")
+  @@ignore
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model users {
-  id                     Int                  @id @default(autoincrement()) @db.UnsignedInt
+  id                     Int                  @db.UnsignedInt
   ownername              String               @db.VarChar(255)
   email                  String               @db.VarChar(150)
   password               String               @db.VarChar(60)
@@ -455,12 +457,23 @@ model users {
   appswitch              Boolean              @default(false)
   keysemail              Int                  @db.TinyInt
   remember_token         String?              @db.VarChar(100)
-  created_at             DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  updated_at             DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  paid_at                DateTime             @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  created_at             DateTime             @default(now()) @db.Timestamp(0)
+  updated_at             DateTime             @default(now()) @db.Timestamp(0)
+  paid_at                DateTime             @default(now()) @db.Timestamp(0)
   deleted_at             DateTime?            @db.Timestamp(0)
-  role_user              role_user[]
-  tasks                  tasks[]
+
+  @@ignore
+}
+
+model processimports {
+  id         Int       @id
+  count      Int
+  inprocess  Int       @default(0)
+  user_id    Int
+  created_at DateTime? @default(now()) @updatedAt @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+
+  @@index([user_id], map: "user_id")
 }
 
 enum etsy_requests_status {
@@ -525,14 +538,3 @@ enum products_status {
   error
   reimport_in_progress @map("reimport in progress")
 }
-
-model processimports {
-  id         Int       @id @default(autoincrement())
-  count      Int
-  user_id    Int
-  created_at DateTime? @default(now()) @updatedAt @db.Timestamp(0)
-  updated_at DateTime? @db.Timestamp(0)
-
-  @@index([user_id], map: "user_id")
-}
-

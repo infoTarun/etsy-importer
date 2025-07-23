@@ -99,135 +99,204 @@ export const loader = async ({request}) => {
             tags: product.tags,
             vendor: product.brand,
             status:status,
+            // publishedAt: new Date().toISOString()
         },
         media:media
         };
         const response = await admin.graphql(queryProduct, { variables });
         const data = await response.json();
         if (data?.data?.productCreate?.product?.variants?.nodes?.[0]?.id) {
-           const ProductVariant = product.product_variants;
+            const ProductVariant = product.product_variants;
             const shopifyProductId = data.data.productCreate.product.id;
+            if (shopifyProductId) {
+                const setting = await prisma.setting.findUnique({
+                    where: { user_id: userId },
+                });
+
+                let publicationId = setting?.shopify_publication_id;
+
+                if (!publicationId) {
+                    const getPublicationsQuery = `
+                    query {
+                        publications(first: 5) {
+                        edges {
+                            node {
+                            id
+                            name
+                            }
+                        }
+                        }
+                    }`;
+
+                    const pubRes = await admin.graphql(getPublicationsQuery);
+                    const pubData = await pubRes.json();
+
+                    const onlineStorePublication = pubData.data.publications.edges.find(
+                    (edge) => edge.node.name === "Online Store"
+                    );
+
+                    if (!onlineStorePublication) {
+                    console.error("❌ Online Store publication not found");
+                    return;
+                    }
+
+                    publicationId = onlineStorePublication.node.id;
+
+                    // Step 3: Save publicationId in DB for future use
+                    await prisma.setting.update({
+                    where: { user_id: userId },
+                    data: { shopify_publication_id: publicationId },
+                    });
+                }
+
+                // Step 4: Publish product
+                const publishProductMutation = `
+                    mutation PublishProduct($id: ID!, $input: [PublicationInput!]!) {
+                    publishablePublish(id: $id, input: $input) {
+                        userErrors {
+                        field
+                        message
+                        }
+                    }
+                    }`;
+
+                const publishResponse = await admin.graphql(publishProductMutation, {
+                    variables: {
+                    id: shopifyProductId,
+                    input: [{ publicationId }],
+                    },
+                });
+
+                const publishResult = await publishResponse.json();
+
+                if (publishResult.data.publishablePublish.userErrors.length > 0) {
+                    console.error("Publish Errors:", publishResult.data.publishablePublish.userErrors);
+                } else {
+                    console.log("✅ Product published to Online Store");
+                }
+            }
+
             console.log("Variant ID:", data.data.productCreate.product.variants.nodes[0].id);
             const  ProductVariantId = data.data.productCreate.product.variants.nodes[0].id;
             const weightUnit = convertWeightUnit(ProductVariant[0]['weight_unit']);
             const weight = ProductVariant[0]['weight'] ?? 0;
             const sku = ProductVariant[0]['sku'] ?? "";
-            const price = ProductVariant[0]['price'] ;
-             const quantity =  ProductVariant[0]['quantity'];
-                    const queryVariant = `
-                    mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-                        productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-                            product {
+            const price = ProductVariant[0]['price'];
+            const quantity =  ProductVariant[0]['quantity'];
+            const queryVariant = `
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                    product {
+                        id
+                    }
+                    productVariants {
+                        id
+                        inventoryItem{
+                            id
+                            inventoryLevels(first:1){
+                            nodes{
+                                location{
                                 id
-                            }
-                            productVariants {
-                                id
-                                inventoryItem{
-                                    id
-                                    inventoryLevels(first:1){
-                                    nodes{
-                                        location{
-                                        id
-                                        }
-                                    }
-                                    }
                                 }
                             }
-                            userErrors {
-                            field
-                            message
                             }
                         }
-                        }`;
-                    let variables = {
-                            productId: shopifyProductId,
-                            variants: [
-                                {
-                                id: ProductVariantId,
-                                inventoryItem: {
-                                    measurement: {
-                                    weight: {
-                                        unit: weightUnit,
-                                        value: parseFloat(weight)
-                                    }
-                                    },
-                                    requiresShipping: true,
-                                    sku: sku,
-                                    tracked: true
-                                },
-                                inventoryPolicy: "DENY",
-                                price: price, 
-                                taxable: true
-                                }
+                    }
+                    userErrors {
+                    field
+                    message
+                    }
+                }
+                }`;
+            let variables = {
+                productId: shopifyProductId,
+                variants: [
+                    {
+                    id: ProductVariantId,
+                    inventoryItem: {
+                        measurement: {
+                        weight: {
+                            unit: weightUnit,
+                            value: parseFloat(weight)
+                        }
+                        },
+                        requiresShipping: true,
+                        sku: sku,
+                        tracked: true
+                    },
+                    inventoryPolicy: "DENY",
+                    price: price, 
+                    taxable: true
+                    }
+                ]
+            };
+            const responseVariant = await admin.graphql(queryVariant, { variables });
+            const dataVariant = await responseVariant.json();
+            const inventoryId = dataVariant.data.productVariantsBulkUpdate.productVariants[0].inventoryItem.id;
+            const locationId = dataVariant.data.productVariantsBulkUpdate.productVariants[0].inventoryItem.inventoryLevels.nodes[0].location.id;
+            const queryInventory = `
+                mutation InventorySet($input: InventorySetQuantitiesInput!) {
+                    inventorySetQuantities(input: $input) {
+                        inventoryAdjustmentGroup {
+                        createdAt
+                        reason
+                        referenceDocumentUri
+                        changes {
+                            name
+                            delta
+                        }
+                        }
+                        userErrors {
+                        field
+                        message
+                        }
+                    }
+                    }`;
+                 variables = {
+                        input: {
+                          ignoreCompareQuantity : true,
+                            name: "available",
+                            reason: "correction",
+                            quantities: [
+                            {
+                                inventoryItemId: inventoryId,
+                                locationId: locationId,
+                                quantity: quantity,
+                            }
                             ]
-                    };
-                 const responseVariant = await admin.graphql(queryVariant, { variables });
-                const dataVariant = await responseVariant.json();
-                const inventoryId = dataVariant.data.productVariantsBulkUpdate.productVariants[0].inventoryItem.id;
-                const locationId = dataVariant.data.productVariantsBulkUpdate.productVariants[0].inventoryItem.inventoryLevels.nodes[0].location.id;
-                const queryInventory = `
-                    mutation InventorySet($input: InventorySetQuantitiesInput!) {
-                        inventorySetQuantities(input: $input) {
-                            inventoryAdjustmentGroup {
-                            createdAt
-                            reason
-                            referenceDocumentUri
-                            changes {
-                                name
-                                delta
-                            }
-                            }
-                            userErrors {
-                            field
-                            message
-                            }
                         }
-                        }`;
-                     variables = {
-                            input: {
-                              ignoreCompareQuantity : true,
-                                name: "available",
-                                reason: "correction",
-                                quantities: [
-                                {
-                                    inventoryItemId: inventoryId,
-                                    locationId: locationId,
-                                    quantity: quantity,
-                                }
-                                ]
-                            }
-                        };
-                const responseInventory = await admin.graphql(queryInventory, { variables });
-                const dataInventory = await responseInventory.json();
-                const updateProduct = await prisma.products.update({
-                    where: {
-                    product_id_user_id: {
-                    product_id: productId,
-                    user_id: userId,
+                    };
+            const responseInventory = await admin.graphql(queryInventory, { variables });
+            const dataInventory = await responseInventory.json();
+            const updateProduct = await prisma.products.update({
+                where: {
+                product_id_user_id: {
+                product_id: productId,
+                user_id: userId,
+                }
+            },
+                data: {
+                    status: "Imported",
+                    shopifyproductid:shopifyProductId.replace("gid://shopify/Product/", ""),
+                },
+            });
+        
+            const updateVariant = await prisma.product_variants.update({
+                where: {
+                   id_user_id: {
+                        id: ProductVariant[0].id,
+                        user_id:userId
                     }
                 },
-                    data: {
-                        status: "Imported",
-                        shopifyproductid:shopifyProductId.replace("gid://shopify/Product/", ""),
-                    },
+                data: {
+                    status: "Imported",
+                    shopifyproductid: shopifyProductId.replace("gid://shopify/Product/", ""),
+                    shopifyvariantid: ProductVariantId.replace("gid://shopify/ProductVariant/", ""),
+                    shopifyinventoryid: inventoryId.replace("gid://shopify/InventoryItem/", ""),
+                    shopifylocationid: locationId.replace("gid://shopify/Location/", ""),
+                }
                 });
-            
-                const updateVariant = await prisma.product_variants.update({
-                    where: {
-                       id_user_id: {
-                            id: ProductVariant[0].id,
-                            user_id:userId
-                        }
-                    },
-                    data: {
-                        status: "Imported",
-                        shopifyproductid: shopifyProductId.replace("gid://shopify/Product/", ""),
-                        shopifyvariantid: ProductVariantId.replace("gid://shopify/ProductVariant/", ""),
-                        shopifyinventoryid: inventoryId.replace("gid://shopify/InventoryItem/", ""),
-                        shopifylocationid: locationId.replace("gid://shopify/Location/", ""),
-                    }
-                    });
-         return json({ msg: "Product has been imported." }, { status: 200 });
+            return json({ msg: "Product has been imported." }, { status: 200 });
 
         }
     }else{
@@ -246,7 +315,6 @@ export const loader = async ({request}) => {
         let updateDatabase = [];
         let variantMedia = [];
         let firstImage = '';
-
 
         for (const variant of product_variants) {
             let variantOption = [];
@@ -344,7 +412,6 @@ export const loader = async ({request}) => {
             const nameSet1 = new Set();
             const nameSet2 = new Set();
 
-
             for (const opt of option1) {
                 if (!nameSet1.has(opt.name)) {
                     nameSet1.add(opt.name);
@@ -359,12 +426,11 @@ export const loader = async ({request}) => {
             }
 
             productOption.push({ name: option1Name,values:uniqueOptions1 });
-            productOption.push({ name: option2Name,values:uniqueOptions2 });            
+            productOption.push({ name: option2Name,values:uniqueOptions2 });
         }else{
             const uniqueOptions1 = [];
 
             const nameSet1 = new Set();
-
 
             for (const opt of option1) {
                 if (!nameSet1.has(opt.name)) {
@@ -408,9 +474,8 @@ export const loader = async ({request}) => {
                 }
             }
             }`;
-		let  status =  'ACTIVE' ;
+        let  status =  'ACTIVE' ;
         let productImages = JSON.parse(product.product_image_data);
-
         let  media = [];
         for (const img of productImages) {
             let isMapped = false;
@@ -437,16 +502,69 @@ export const loader = async ({request}) => {
                 tags: product.tags,
                 vendor: product.brand,
                 status:status,
-                productOptions:productOption
+                productOptions:productOption,
+                // publishedAt: new Date().toISOString()
             },
             media:media
         };
-        // return {variables}
 
         const response = await admin.graphql(queryProduct, { variables });
         const data = await response.json();
-        if (data?.data?.productCreate?.product?.variants?.nodes?.[0]?.id) {
+        if(data?.data?.productCreate?.product?.variants?.nodes?.[0]?.id){
             const shopifyProductId = data.data.productCreate.product.id;
+            if (shopifyProductId) {
+                // Step 1: Get Publication ID (Online Store)
+                const getPublicationsQuery = `
+                    query {
+                    publications(first: 5) {
+                        edges {
+                        node {
+                            id
+                            name
+                        }
+                        }
+                    }
+                    }`;
+
+                const pubRes = await admin.graphql(getPublicationsQuery);
+                const pubData = await pubRes.json();
+
+                const onlineStorePublication = pubData.data.publications.edges.find(
+                    (edge) => edge.node.name === "Online Store"
+                );
+
+                if (onlineStorePublication) {
+                    const publicationId = onlineStorePublication.node.id;
+
+                    // Step 2: Publish Product to Online Store
+                    const publishProductMutation = `
+                    mutation PublishProduct($id: ID!, $input: [PublicationInput!]!) {
+                        publishablePublish(id: $id, input: $input) {
+                        userErrors {
+                            field
+                            message
+                        }
+                        }
+                    }`;
+
+                    const publishResponse = await admin.graphql(publishProductMutation, {
+                        variables: {
+                            id: shopifyProductId,
+                            input: [{ publicationId }],
+                        },
+                    });
+
+                    const publishResult = await publishResponse.json();
+
+                    if (publishResult.data.publishablePublish.userErrors.length > 0) {
+                        console.error("Publish Errors:", publishResult.data.publishablePublish.userErrors);
+                    } else {
+                        console.log("✅ Product published to Online Store");
+                    }
+                } else {
+                    console.error("❌ Online Store publication not found");
+                }
+            }
             console.log("Variant ID:", data.data.productCreate.product.variants.nodes[0].id);
             const  ProductVariantId = data.data.productCreate.product.variants.nodes[0].id;
             const updateProduct = await prisma.products.update({
@@ -466,89 +584,89 @@ export const loader = async ({request}) => {
             const sku = firstVariant.sku ?? "";
             const price = firstVariant.price ;
             const quantity =  firstVariant.quantity;
-            const  barcode  = firstVariant.barcode;
+            const barcode = firstVariant.barcode;
+
             // now update default variant data 
             const queryVariant = `
-                    mutation productVariantsBulkUpdate($media:[CreateMediaInput!],$productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-                        productVariantsBulkUpdate(media: $media,productId: $productId, variants: $variants) {
-                            product {
+                mutation productVariantsBulkUpdate($media:[CreateMediaInput!],$productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                    productVariantsBulkUpdate(media: $media,productId: $productId, variants: $variants) {
+                        product {
+                            id
+                        }
+                        productVariants {
+                            id
+                            inventoryItem{
                                 id
-                            }
-                            productVariants {
-                                id
-                                inventoryItem{
-                                    id
-                                    inventoryLevels(first:1){
-                                    nodes{
-                                        location{
-                                          id
-                                        }
-                                    }
+                                inventoryLevels(first:1){
+                                nodes{
+                                    location{
+                                      id
                                     }
                                 }
-                            }
-                          
-                            userErrors {
-                            field
-                            message
+                                }
                             }
                         }
-                        }`;
-
-                        if (firstImage !== "") {
-                                 variables = {
-                                    media:[{mediaContentType:"IMAGE",originalSource:firstImage}],
-                                    productId: shopifyProductId,
-                                    variants: [
-                                        {
-                                        id: ProductVariantId,
-                                        inventoryItem: {
-                                            measurement: {
-                                            weight: {
-                                                unit: weightUnit,
-                                                value: parseFloat(weight)
-                                            }
-                                            },
-                                            requiresShipping: true,
-                                            sku: sku,
-                                            tracked: true
-                                        },
-                                        inventoryPolicy: "DENY",
-                                        price: price, 
-                                        taxable: true,
-                                        mediaSrc:firstImage
-                                        }
-                                    ]
-                            };
-                        }else{
-                             variables = {
-                                    productId: shopifyProductId,
-                                    variants: [
-                                        {
-                                        id: ProductVariantId,
-                                        inventoryItem: {
-                                            measurement: {
-                                            weight: {
-                                                unit: weightUnit,
-                                                value: parseFloat(weight)
-                                            }
-                                            },
-                                            requiresShipping: true,
-                                            sku: sku,
-                                            tracked: true
-                                        },
-                                        inventoryPolicy: "DENY",
-                                        price: price, 
-                                        taxable: true
-                                        }
-                                    ]
-                            };
+                      
+                        userErrors {
+                        field
+                        message
                         }
+                    }
+                    }`;
+            
+            if (firstImage !== "") {
+                variables = {
+                    media:[{mediaContentType:"IMAGE",originalSource:firstImage}],
+                    productId: shopifyProductId,
+                    variants: [
+                        {
+                        id: ProductVariantId,
+                        inventoryItem: {
+                            measurement: {
+                            weight: {
+                                unit: weightUnit,
+                                value: parseFloat(weight)
+                            }
+                            },
+                            requiresShipping: true,
+                            sku: sku,
+                            tracked: true
+                        },
+                        inventoryPolicy: "DENY",
+                        price: price, 
+                        taxable: true,
+                        mediaSrc:firstImage
+                        }
+                    ]
+                };
+            }else{
+                variables = {
+                    productId: shopifyProductId,
+                    variants: [
+                        {
+                        id: ProductVariantId,
+                        inventoryItem: {
+                            measurement: {
+                            weight: {
+                                unit: weightUnit,
+                                value: parseFloat(weight)
+                            }
+                            },
+                            requiresShipping: true,
+                            sku: sku,
+                            tracked: true
+                        },
+                        inventoryPolicy: "DENY",
+                        price: price, 
+                        taxable: true
+                        }
+                    ]
+                };
+            }
             const responseVariantUpdate = await admin.graphql(queryVariant, { variables });
             const dataVariant = await responseVariantUpdate.json();
             const inventoryId = dataVariant.data.productVariantsBulkUpdate.productVariants[0].inventoryItem.id;
             const locationId = dataVariant.data.productVariantsBulkUpdate.productVariants[0].inventoryItem.inventoryLevels.nodes[0].location.id;
-            
             const updatedVariants = variantVariables.map(variant => ({
                ...variant,
                 inventoryQuantities: {
@@ -556,24 +674,25 @@ export const loader = async ({request}) => {
                     locationId: locationId
                 }
             }));
-               const queryInventory = `
-                    mutation InventorySet($input: InventorySetQuantitiesInput!) {
-                        inventorySetQuantities(input: $input) {
-                            inventoryAdjustmentGroup {
-                            createdAt
-                            reason
-                            referenceDocumentUri
-                            changes {
-                                name
-                                delta
-                            }
-                            }
-                            userErrors {
-                            field
-                            message
-                            }
-                        }
-                        }`;
+            const queryInventory = `
+            mutation InventorySet($input: InventorySetQuantitiesInput!) {
+                inventorySetQuantities(input: $input) {
+                    inventoryAdjustmentGroup {
+                    createdAt
+                    reason
+                    referenceDocumentUri
+                    changes {
+                        name
+                        delta
+                    }
+                    }
+                    userErrors {
+                    field
+                    message
+                    }
+                }
+                }`;
+
             variables = {
                 input: {
                     ignoreCompareQuantity : true,
@@ -588,6 +707,7 @@ export const loader = async ({request}) => {
                     ]
                 }
             };
+
             const updateVariant = await prisma.product_variants.update({
                 where: {
                     id_user_id: {
@@ -603,8 +723,10 @@ export const loader = async ({request}) => {
                     shopifylocationid: locationId.replace("gid://shopify/Location/", ""),
                 }
             });
+
             const responseInventory = await admin.graphql(queryInventory, { variables });
             const dataInventory = await responseInventory.json();
+
             // now create other variants 
             const queryVariantCreate = `
             mutation ProductVariantsCreate($media: [CreateMediaInput!],$productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -645,44 +767,45 @@ export const loader = async ({request}) => {
                     variants:updatedVariants
                 } ;
             }
-
-            // return {variables};
             const responseVariant = await admin.graphql(queryVariantCreate, { variables });
             const dataVariantCreate = await responseVariant.json();
             for (const createdVariant of dataVariantCreate.data.productVariantsBulkCreate.productVariants){
                 let option1val = '';
                 let option2val = '';
+
                 if (
                 createdVariant?.selectedOptions &&
                 createdVariant.selectedOptions.length > 0 &&
                 createdVariant.selectedOptions[0]?.value
                 ) {
                 option1val = createdVariant.selectedOptions[0].value;
-                }             
+                }
+
                 if (
                 createdVariant?.selectedOptions &&
                 createdVariant.selectedOptions.length > 0 &&
                 createdVariant.selectedOptions[1]?.value
                 ) {
                 option2val = createdVariant.selectedOptions[1].value;
-                }             
-                    await prisma.product_variants.updateMany({
-                            where: {
-                                option1val: option1val,
-                                option2val: option2val,
-                                product_id: productId,
-                                user_id: userId
-                            },
-                            data: {
-                                status: "Imported",
-                                shopifyproductid: shopifyProductId.replace("gid://shopify/Product/", ""),
-                                shopifyvariantid: createdVariant.id.replace("gid://shopify/ProductVariant/", ""),
-                                shopifyinventoryid: createdVariant.inventoryItem.id.replace("gid://shopify/InventoryItem/", ""),
-                                shopifylocationid: locationId.replace("gid://shopify/Location/", "")
-                            }
-                        });
+                }
+                await prisma.product_variants.updateMany({
+                    where: {
+                        option1val: option1val,
+                        option2val: option2val,
+                        product_id: productId,
+                        user_id: userId
+                    },
+                    data: {
+                        status: "Imported",
+                        shopifyproductid: shopifyProductId.replace("gid://shopify/Product/", ""),
+                        shopifyvariantid: createdVariant.id.replace("gid://shopify/ProductVariant/", ""),
+                        shopifyinventoryid: createdVariant.inventoryItem.id.replace("gid://shopify/InventoryItem/", ""),
+                        shopifylocationid: locationId.replace("gid://shopify/Location/", "")
+                    }
+                });
             }
-            return json({ msg: "Product has been Import." ,shopifyproductid:shopifyProductId.replace("gid://shopify/Product/", "")}, { status: 202 });          }
+            return json({ msg: "Product has been Import." ,shopifyproductid:shopifyProductId.replace("gid://shopify/Product/", "")}, { status: 202 });
+        }
         return {data}
     }
     return json({ msg: "Product has been Import." ,proudct:product}, { status: 202 });
