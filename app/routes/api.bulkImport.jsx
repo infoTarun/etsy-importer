@@ -114,6 +114,73 @@ export const loader = async ({request}) => {
                 if (data?.data?.productCreate?.product?.variants?.nodes?.[0]?.id) {
                 const ProductVariant = product.product_variants;
                     const shopifyProductId = data.data.productCreate.product.id;
+                    if (shopifyProductId) {
+                        const setting = await prisma.setting.findUnique({
+                            where: { user_id: userId },
+                        });
+
+                        let publicationId = setting?.shopify_publication_id;
+
+                        if (!publicationId) {
+                            const getPublicationsQuery = `
+                            query {
+                                publications(first: 5) {
+                                edges {
+                                    node {
+                                    id
+                                    name
+                                    }
+                                }
+                                }
+                            }`;
+
+                            const pubRes = await admin.graphql(getPublicationsQuery);
+                            const pubData = await pubRes.json();
+
+                            const onlineStorePublication = pubData.data.publications.edges.find(
+                            (edge) => edge.node.name === "Online Store"
+                            );
+
+                            if (!onlineStorePublication) {
+                            console.error("❌ Online Store publication not found");
+                            return;
+                            }
+
+                            publicationId = onlineStorePublication.node.id;
+
+                            // Step 3: Save publicationId in DB for future use
+                            await prisma.setting.update({
+                            where: { user_id: userId },
+                            data: { shopify_publication_id: publicationId },
+                            });
+                        }
+
+                        // Step 4: Publish product
+                        const publishProductMutation = `
+                            mutation PublishProduct($id: ID!, $input: [PublicationInput!]!) {
+                            publishablePublish(id: $id, input: $input) {
+                                userErrors {
+                                field
+                                message
+                                }
+                            }
+                            }`;
+
+                        const publishResponse = await admin.graphql(publishProductMutation, {
+                            variables: {
+                            id: shopifyProductId,
+                            input: [{ publicationId }],
+                            },
+                        });
+
+                        const publishResult = await publishResponse.json();
+
+                        if (publishResult.data.publishablePublish.userErrors.length > 0) {
+                            console.error("Publish Errors:", publishResult.data.publishablePublish.userErrors);
+                        } else {
+                            console.log("✅ Product published to Online Store");
+                        }
+                    }
                     console.log("Variant ID:", data.data.productCreate.product.variants.nodes[0].id);
                     const  ProductVariantId = data.data.productCreate.product.variants.nodes[0].id;
                     const weightUnit = convertWeightUnit(ProductVariant[0]['weight_unit']);
@@ -454,6 +521,73 @@ export const loader = async ({request}) => {
                 const data = await response.json();
                 if (data?.data?.productCreate?.product?.variants?.nodes?.[0]?.id) {
                     const shopifyProductId = data.data.productCreate.product.id;
+                    if (shopifyProductId) {
+                        const setting = await prisma.setting.findUnique({
+                            where: { user_id: userId },
+                        });
+
+                        let publicationId = setting?.shopify_publication_id;
+
+                        if (!publicationId) {
+                            const getPublicationsQuery = `
+                            query {
+                                publications(first: 5) {
+                                edges {
+                                    node {
+                                    id
+                                    name
+                                    }
+                                }
+                                }
+                            }`;
+
+                            const pubRes = await admin.graphql(getPublicationsQuery);
+                            const pubData = await pubRes.json();
+
+                            const onlineStorePublication = pubData.data.publications.edges.find(
+                            (edge) => edge.node.name === "Online Store"
+                            );
+
+                            if (!onlineStorePublication) {
+                            console.error("❌ Online Store publication not found");
+                            return;
+                            }
+
+                            publicationId = onlineStorePublication.node.id;
+
+                            // Step 3: Save publicationId in DB for future use
+                            await prisma.setting.update({
+                            where: { user_id: userId },
+                            data: { shopify_publication_id: publicationId },
+                            });
+                        }
+
+                        // Step 4: Publish product
+                        const publishProductMutation = `
+                            mutation PublishProduct($id: ID!, $input: [PublicationInput!]!) {
+                            publishablePublish(id: $id, input: $input) {
+                                userErrors {
+                                field
+                                message
+                                }
+                            }
+                            }`;
+
+                        const publishResponse = await admin.graphql(publishProductMutation, {
+                            variables: {
+                            id: shopifyProductId,
+                            input: [{ publicationId }],
+                            },
+                        });
+
+                        const publishResult = await publishResponse.json();
+
+                        if (publishResult.data.publishablePublish.userErrors.length > 0) {
+                            console.error("Publish Errors:", publishResult.data.publishablePublish.userErrors);
+                        } else {
+                            console.log("✅ Product published to Online Store");
+                        }
+                    }
                     console.log("Variant ID:", data.data.productCreate.product.variants.nodes[0].id);
                     const  ProductVariantId = data.data.productCreate.product.variants.nodes[0].id;
                     const updateProduct = await prisma.products.update({
