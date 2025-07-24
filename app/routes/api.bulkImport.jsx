@@ -115,7 +115,7 @@ export const loader = async ({request}) => {
                 const ProductVariant = product.product_variants;
                     const shopifyProductId = data.data.productCreate.product.id;
                     if (shopifyProductId) {
-                        const setting = await prisma.setting.findUnique({
+                        const setting = await prisma.setting.findFirst({
                             where: { user_id: userId },
                         });
 
@@ -149,10 +149,12 @@ export const loader = async ({request}) => {
                             publicationId = onlineStorePublication.node.id;
 
                             // Step 3: Save publicationId in DB for future use
-                            await prisma.setting.update({
-                            where: { user_id: userId },
-                            data: { shopify_publication_id: publicationId },
-                            });
+                            if (setting) {
+                                await prisma.setting.update({
+                                    where: { id: setting.id },
+                                    data: { shopify_publication_id: publicationId },
+                                });
+                            }
                         }
 
                         // Step 4: Publish product
@@ -522,7 +524,7 @@ export const loader = async ({request}) => {
                 if (data?.data?.productCreate?.product?.variants?.nodes?.[0]?.id) {
                     const shopifyProductId = data.data.productCreate.product.id;
                     if (shopifyProductId) {
-                        const setting = await prisma.setting.findUnique({
+                        const setting = await prisma.setting.findFirst({
                             where: { user_id: userId },
                         });
 
@@ -556,10 +558,12 @@ export const loader = async ({request}) => {
                             publicationId = onlineStorePublication.node.id;
 
                             // Step 3: Save publicationId in DB for future use
-                            await prisma.setting.update({
-                            where: { user_id: userId },
-                            data: { shopify_publication_id: publicationId },
-                            });
+                            if (setting) {
+                                await prisma.setting.update({
+                                    where: { id: setting.id },
+                                    data: { shopify_publication_id: publicationId },
+                                });
+                            }
                         }
 
                         // Step 4: Publish product
